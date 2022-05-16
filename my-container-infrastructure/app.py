@@ -27,5 +27,5 @@ taskdef = add_task_definition_with_container(stack,
                                              f'taskdef-{task_config.family}',
                                              task_config=task_config,
                                              container_config=container_config)
-add_service(stack, f'service-{task_config.family}', cluster, taskdef, 80, 0);
+add_service(stack, f'service-{task_config.family}', cluster, taskdef, 80, 0, True);
 app.synth()

@@ -13,8 +13,10 @@ from aws_cdk.aws_ecs import (
     DeploymentCircuitBreaker,
     FargateService,
     FargateTaskDefinition,
+    LogDriver,
     TaskDefinition
 )
+from aws_cdk.aws_logs import RetentionDays
 
 def add_cluster(scope: Construct, id: str, vpc: IVpc) -> Cluster:
     return Cluster(scope, id, vpc=vpc)
@@ -40,7 +42,8 @@ def add_task_definition_with_container(scope: Construct,
                                     memory_limit_mib=task_config.memory_limit_mb,
                                     family=task_config.family)
     image = ContainerImage.from_registry(container_config.dockerhub_image)
-    taskdef.add_container(f'container-{container_config.dockerhub_image}', image=image)
+    logdriver = LogDriver.aws_logs(stream_prefix=task_config.family, log_retention=RetentionDays.ONE_DAY)
+    taskdef.add_container(f'container-{container_config.dockerhub_image}', image=image, logging=logdriver)
     return taskdef
 
 def add_service(scope: Construct, 
@@ -49,6 +52,7 @@ def add_service(scope: Construct,
                 taskdef: FargateTaskDefinition,
                 port: int,
                 desired_count: int,
+                assign_public_ip = False,
                 service_name: str = None) -> TaskDefinition:
     sg = SecurityGroup(scope, f'{id}-security-group',
                        description=f'Security group for service {service_name or ""}',
@@ -61,5 +65,6 @@ def add_service(scope: Construct,
                              desired_count=desired_count,
                              service_name=service_name,
                              security_groups=[sg],
-                             circuit_breaker=DeploymentCircuitBreaker(rollback=True))
+                             circuit_breaker=DeploymentCircuitBreaker(rollback=True),
+                             assign_public_ip=assign_public_ip)
     return service
