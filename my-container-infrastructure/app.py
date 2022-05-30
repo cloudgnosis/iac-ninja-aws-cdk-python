@@ -16,7 +16,11 @@ stack = Stack(app, 'my-container-infrastructure',
                   env=Environment(account=os.getenv('CDK_DEFAULT_ACCOUNT'),
                                       region=os.getenv('CDK_DEFAULT_REGION')))
 
-vpc = Vpc.from_lookup(stack, 'vpc', is_default=True)
+vpcname = app.node.try_get_context('vpcname')
+if (vpcname):
+    vpc = Vpc.from_lookup(stack, 'vpc', vpc_name=vpcname)
+else:
+    vpc = Vpc(stack, 'vpc', vpc_name='my-vpc', nat_gateways=1, max_azs=2)
 
 id = 'my-test-cluster'
 cluster = add_cluster(stack, id, vpc)
