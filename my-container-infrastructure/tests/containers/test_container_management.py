@@ -1,3 +1,4 @@
+import pytest
 from aws_cdk import Stack
 from aws_cdk.assertions import (
     Capture,
@@ -50,7 +51,35 @@ def test_ECS_fargate_task_definition_defined():
         'Family': familyval,
     })
 
-def test_fargate_service_created_with_only_mandatory_properties():
+
+def test_container_definition_added_to_task_definition():
+    stack = Stack()
+    cpuval = 512
+    memval = 1024
+    familyval = 'test'
+    task_cfg = TaskConfig(cpu=cpuval, memory_limit_mb=memval, family=familyval)
+    image_name = 'httpd';
+    container_cfg = ContainerConfig(dockerhub_image=image_name)
+
+    taskdef = add_task_definition_with_container(stack, 'test-taskdef', task_cfg, container_cfg)
+
+    template = Template.from_stack(stack)
+    containerdef : ContainerDefinition = taskdef.default_container
+
+    assert(containerdef != None)
+    assert(containerdef.image_name == image_name)
+
+    template.has_resource_properties('AWS::ECS::TaskDefinition', {
+        'ContainerDefinitions': Match.array_with([
+            Match.object_like({
+                'Image': image_name
+            })
+        ])
+    })
+
+
+@pytest.fixture
+def service_test_input_data():
     stack = Stack()
     vpc = Vpc(stack, 'vpc')
     cluster = add_cluster(stack, 'test-cluster', vpc=vpc)
@@ -61,6 +90,13 @@ def test_fargate_service_created_with_only_mandatory_properties():
     image_name = 'httpd';
     container_cfg = ContainerConfig(dockerhub_image=image_name)
     taskdef = add_task_definition_with_container(stack, 'test-taskdef', task_cfg, container_cfg)
+    return { 'stack': stack, 'cluster': cluster, 'task_definition': taskdef}
+
+
+def test_fargate_service_created_with_only_mandatory_properties(service_test_input_data):
+    stack = service_test_input_data['stack']
+    cluster = service_test_input_data['cluster']
+    taskdef = service_test_input_data['task_definition']
 
     port = 80
     desired_count = 1
@@ -96,28 +132,3 @@ def test_fargate_service_created_with_only_mandatory_properties():
         ])
     })
 
-
-def test_container_definition_added_to_task_definition():
-    stack = Stack()
-    cpuval = 512
-    memval = 1024
-    familyval = 'test'
-    task_cfg = TaskConfig(cpu=cpuval, memory_limit_mb=memval, family=familyval)
-    image_name = 'httpd';
-    container_cfg = ContainerConfig(dockerhub_image=image_name)
-
-    taskdef = add_task_definition_with_container(stack, 'test-taskdef', task_cfg, container_cfg)
-
-    template = Template.from_stack(stack)
-    containerdef : ContainerDefinition = taskdef.default_container
-
-    assert(containerdef != None)
-    assert(containerdef.image_name == image_name)
-
-    template.has_resource_properties('AWS::ECS::TaskDefinition', {
-        'ContainerDefinitions': Match.array_with([
-            Match.object_like({
-                'Image': image_name
-            })
-        ])
-    })
