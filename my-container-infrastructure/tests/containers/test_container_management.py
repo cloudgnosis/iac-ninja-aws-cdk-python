@@ -9,7 +9,7 @@ from aws_cdk.aws_ec2 import Vpc
 from aws_cdk.aws_ecs import ContainerDefinition
 from containers.container_management import (
     add_cluster,
-    add_service,
+    add_loadbalanced_service,
     add_task_definition_with_container,
     ContainerConfig,
     TaskConfig
@@ -35,7 +35,7 @@ def test_ECS_fargate_task_definition_defined():
     familyval = 'test'
     task_cfg = TaskConfig(cpu=cpuval, memory_limit_mb=memval, family=familyval)
     image_name = 'httpd';
-    container_cfg = ContainerConfig(dockerhub_image=image_name)
+    container_cfg = ContainerConfig(dockerhub_image=image_name, tcp_ports=[80])
 
     taskdef = add_task_definition_with_container(stack, 'test-taskdef', task_cfg, container_cfg)
 
@@ -59,7 +59,7 @@ def test_container_definition_added_to_task_definition():
     familyval = 'test'
     task_cfg = TaskConfig(cpu=cpuval, memory_limit_mb=memval, family=familyval)
     image_name = 'httpd';
-    container_cfg = ContainerConfig(dockerhub_image=image_name)
+    container_cfg = ContainerConfig(dockerhub_image=image_name, tcp_ports=[80])
 
     taskdef = add_task_definition_with_container(stack, 'test-taskdef', task_cfg, container_cfg)
 
@@ -88,7 +88,7 @@ def service_test_input_data():
     familyval = 'test'
     task_cfg = TaskConfig(cpu=cpuval, memory_limit_mb=memval, family=familyval)
     image_name = 'httpd';
-    container_cfg = ContainerConfig(dockerhub_image=image_name)
+    container_cfg = ContainerConfig(dockerhub_image=image_name, tcp_ports=[80])
     taskdef = add_task_definition_with_container(stack, 'test-taskdef', task_cfg, container_cfg)
     return { 'stack': stack, 'cluster': cluster, 'task_definition': taskdef}
 
@@ -101,7 +101,7 @@ def test_fargate_service_created_with_only_mandatory_properties(service_test_inp
     port = 80
     desired_count = 1
 
-    service = add_service(stack, 'test-service', cluster, taskdef, port, desired_count)
+    service = add_loadbalanced_service(stack, 'test-service', cluster, taskdef, port, desired_count)
 
     sg_capture = Capture()
     template = Template.from_stack(stack)
@@ -121,7 +121,12 @@ def test_fargate_service_created_with_only_mandatory_properties(service_test_inp
         })
     })
 
-    template.resource_count_is('AWS::EC2::SecurityGroup', 1)
+    template.resource_count_is('AWS::ElasticLoadBalancingV2::LoadBalancer', 1)
+    template.has_resource_properties('AWS::ElasticLoadBalancingV2::LoadBalancer', {
+        'Type': 'application',
+        'Scheme': 'internet-facing'
+    })
+
     template.has_resource_properties('AWS::EC2::SecurityGroup', {
         'SecurityGroupIngress': Match.array_with([
             Match.object_like({
@@ -132,3 +137,19 @@ def test_fargate_service_created_with_only_mandatory_properties(service_test_inp
         ])
     })
 
+
+def test_fargate_loadbalanced_service_created_without_public_access(service_test_input_data):
+    stack = service_test_input_data['stack']
+    cluster = service_test_input_data['cluster']
+    taskdef = service_test_input_data['task_definition']
+
+    port = 80
+    desired_count = 1
+    service = add_loadbalanced_service(stack, 'test-service', cluster, taskdef, port, desired_count, False)
+
+    template = Template.from_stack(stack)
+    template.resource_count_is('AWS::ElasticLoadBalancingV2::LoadBalancer', 1)
+    template.has_resource_properties('AWS::ElasticLoadBalancingV2::LoadBalancer', {
+        'Type': 'application',
+        'Scheme': 'internal'
+    })

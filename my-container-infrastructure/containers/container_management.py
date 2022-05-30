@@ -14,8 +14,11 @@ from aws_cdk.aws_ecs import (
     FargateService,
     FargateTaskDefinition,
     LogDriver,
+    PortMapping,
+    Protocol,
     TaskDefinition
 )
+from aws_cdk.aws_ecs_patterns import ApplicationLoadBalancedFargateService
 from aws_cdk.aws_logs import RetentionDays
 
 def add_cluster(scope: Construct, id: str, vpc: IVpc) -> Cluster:
@@ -30,6 +33,7 @@ class TaskConfig:
 @dataclass
 class ContainerConfig:
     dockerhub_image: str
+    tcp_ports: list[int]
 
 
 def add_task_definition_with_container(scope: Construct, 
@@ -43,28 +47,28 @@ def add_task_definition_with_container(scope: Construct,
                                     family=task_config.family)
     image = ContainerImage.from_registry(container_config.dockerhub_image)
     logdriver = LogDriver.aws_logs(stream_prefix=task_config.family, log_retention=RetentionDays.ONE_DAY)
-    taskdef.add_container(f'container-{container_config.dockerhub_image}', image=image, logging=logdriver)
+    containerdef = taskdef.add_container(f'container-{container_config.dockerhub_image}',
+                                         image=image,
+                                         logging=logdriver)
+    for port in container_config.tcp_ports:
+        containerdef.add_port_mappings(PortMapping(container_port=port, protocol=Protocol.TCP))
     return taskdef
 
-def add_service(scope: Construct, 
-                id: str,
-                cluster: Cluster,
-                taskdef: FargateTaskDefinition,
-                port: int,
-                desired_count: int,
-                assign_public_ip = False,
-                service_name: str = None) -> TaskDefinition:
-    sg = SecurityGroup(scope, f'{id}-security-group',
-                       description=f'Security group for service {service_name or ""}',
-                       vpc=cluster.vpc)
-    sg.add_ingress_rule(peer=Peer.any_ipv4(), connection=Port.tcp(port))
-
-    service = FargateService(scope, id,
-                             cluster=cluster,
-                             task_definition=taskdef,
-                             desired_count=desired_count,
-                             service_name=service_name,
-                             security_groups=[sg],
-                             circuit_breaker=DeploymentCircuitBreaker(rollback=True),
-                             assign_public_ip=assign_public_ip)
+def add_loadbalanced_service(scope: Construct, 
+                             id: str,
+                             cluster: Cluster,
+                             taskdef: FargateTaskDefinition,
+                             port: int,
+                             desired_count: int,
+                             public_endpoint = True,
+                             service_name: str = None) -> ApplicationLoadBalancedFargateService:
+    service = ApplicationLoadBalancedFargateService(
+        scope, id,
+        cluster=cluster,
+        task_definition=taskdef,
+        desired_count=desired_count,
+        service_name=service_name,
+        circuit_breaker=DeploymentCircuitBreaker(rollback=True),
+        public_load_balancer=public_endpoint,
+        listener_port=port)
     return service
