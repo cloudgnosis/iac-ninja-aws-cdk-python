@@ -72,3 +72,20 @@ def add_loadbalanced_service(scope: Construct,
         public_load_balancer=public_endpoint,
         listener_port=port)
     return service
+
+@dataclass
+class ScalingThreshold:
+    percent: float
+
+@dataclass
+class ServiceScalingConfig:
+    min_count: int
+    max_count: int
+    scale_cpu_target: ScalingThreshold
+    scale_memory_target: ScalingThreshold
+
+def set_service_scaling(service: FargateService, config: ServiceScalingConfig):
+    scaling = service.auto_scale_task_count(max_capacity=config.max_count, min_capacity=config.min_count)
+    scaling.scale_on_cpu_utilization('CpuScaling', target_utilization_percent=config.scale_cpu_target.percent)
+    scaling.scale_on_memory_utilization('MemoryScaling', target_utilization_percent=config.scale_memory_target.percent)
+    

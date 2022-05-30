@@ -11,7 +11,10 @@ from containers.container_management import (
     add_cluster,
     add_loadbalanced_service,
     add_task_definition_with_container,
+    set_service_scaling,
     ContainerConfig,
+    ScalingThreshold,
+    ServiceScalingConfig,
     TaskConfig
 )
 
@@ -152,4 +155,52 @@ def test_fargate_loadbalanced_service_created_without_public_access(service_test
     template.has_resource_properties('AWS::ElasticLoadBalancingV2::LoadBalancer', {
         'Type': 'application',
         'Scheme': 'internal'
+    })
+
+
+def test_scaling_settings_for_loadbalanced_service(service_test_input_data):
+    stack = service_test_input_data['stack']
+    cluster = service_test_input_data['cluster']
+    taskdef = service_test_input_data['task_definition']
+    port = 80
+    desired_count = 2
+
+    service = add_loadbalanced_service(stack, 'test-service', cluster, taskdef, port, desired_count, False)
+
+    config = ServiceScalingConfig(
+        min_count=1,
+        max_count=5,
+        scale_cpu_target=ScalingThreshold(percent=50),
+        scale_memory_target=ScalingThreshold(percent=50))
+    set_service_scaling(service=service.service, config=config)
+
+    scale_resource = Capture()
+    template = Template.from_stack(stack)
+    template.resource_count_is('AWS::ApplicationAutoScaling::ScalableTarget', 1)
+    template.has_resource_properties('AWS::ApplicationAutoScaling::ScalableTarget', {
+        'MaxCapacity': config.max_count,
+        'MinCapacity': config.min_count,
+        'ResourceId': scale_resource,
+        'ScalableDimension': 'ecs:service:DesiredCount',
+        'ServiceNamespace': 'ecs'
+    })
+
+    template.resource_count_is('AWS::ApplicationAutoScaling::ScalingPolicy', 2)
+    template.has_resource_properties('AWS::ApplicationAutoScaling::ScalingPolicy', {
+        'PolicyType': 'TargetTrackingScaling',
+        'TargetTrackingScalingPolicyConfiguration': Match.object_like({
+            'PredefinedMetricSpecification': Match.object_equals({
+                'PredefinedMetricType': 'ECSServiceAverageCPUUtilization'
+            }),
+            'TargetValue': config.scale_cpu_target.percent
+        })
+    })
+    template.has_resource_properties('AWS::ApplicationAutoScaling::ScalingPolicy', {
+        'PolicyType': 'TargetTrackingScaling',
+        'TargetTrackingScalingPolicyConfiguration': Match.object_like({
+            'PredefinedMetricSpecification': Match.object_equals({
+                'PredefinedMetricType': 'ECSServiceAverageMemoryUtilization'
+            }),
+            'TargetValue': config.scale_memory_target.percent
+        })
     })

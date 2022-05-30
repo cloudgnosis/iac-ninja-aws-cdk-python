@@ -6,6 +6,9 @@ from containers.container_management import (
     add_cluster,
     add_loadbalanced_service,
     add_task_definition_with_container,
+    set_service_scaling,
+    ScalingThreshold,
+    ServiceScalingConfig,
     ContainerConfig,
     TaskConfig
 )
@@ -31,5 +34,13 @@ taskdef = add_task_definition_with_container(stack,
                                              f'taskdef-{task_config.family}',
                                              task_config=task_config,
                                              container_config=container_config)
-add_loadbalanced_service(stack, f'service-{task_config.family}', cluster, taskdef, 80, 2, True);
+service = add_loadbalanced_service(stack, f'service-{task_config.family}', cluster, taskdef, 80, 2, True);
+set_service_scaling(
+    service=service.service,
+    config=ServiceScalingConfig(
+        min_count=1,
+        max_count=4,
+        scale_cpu_target=ScalingThreshold(percent=50),
+        scale_memory_target=ScalingThreshold(percent=70))
+)
 app.synth()
