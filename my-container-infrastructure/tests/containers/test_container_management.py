@@ -67,7 +67,7 @@ def test_container_definition_added_to_task_definition():
     taskdef = add_task_definition_with_container(stack, 'test-taskdef', task_cfg, container_cfg)
 
     template = Template.from_stack(stack)
-    containerdef : ContainerDefinition = taskdef.default_container
+    containerdef : ContainerDefinition = taskdef.default_container  # type: ignore
 
     assert(containerdef != None)
     assert(containerdef.image_name == image_name)

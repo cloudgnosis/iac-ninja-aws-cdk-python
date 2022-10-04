@@ -39,7 +39,7 @@ class ContainerConfig:
 def add_task_definition_with_container(scope: Construct, 
                                        id: str,
                                        task_config: TaskConfig,
-                                       container_config: ContainerConfig) -> TaskDefinition:
+                                       container_config: ContainerConfig) -> FargateTaskDefinition:
     taskdef = FargateTaskDefinition(scope, 
                                     id,
                                     cpu=task_config.cpu,
@@ -61,7 +61,7 @@ def add_loadbalanced_service(scope: Construct,
                              port: int,
                              desired_count: int,
                              public_endpoint = True,
-                             service_name: str = None) -> ApplicationLoadBalancedFargateService:
+                             service_name: str = None) -> ApplicationLoadBalancedFargateService:  # type: ignore
     service = ApplicationLoadBalancedFargateService(
         scope, id,
         cluster=cluster,

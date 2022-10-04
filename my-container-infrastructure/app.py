@@ -2,6 +2,10 @@
 import os
 from aws_cdk import ( App, Environment, Stack )
 from aws_cdk.aws_ec2 import ( Vpc )
+from monitoring import (
+    init_monitoring,
+    MonitoringConfig
+)
 from containers.container_management import (
     add_cluster,
     add_loadbalanced_service,
@@ -43,4 +47,8 @@ set_service_scaling(
         scale_cpu_target=ScalingThreshold(percent=50),
         scale_memory_target=ScalingThreshold(percent=70))
 )
+
+monitoring = init_monitoring(stack, MonitoringConfig(dashboard_name='monitoring'))
+monitoring.handler.add_medium_header('Test App monitoring')
+
 app.synth()
