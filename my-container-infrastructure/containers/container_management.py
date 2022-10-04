@@ -21,8 +21,15 @@ from aws_cdk.aws_ecs import (
 from aws_cdk.aws_ecs_patterns import ApplicationLoadBalancedFargateService
 from aws_cdk.aws_logs import RetentionDays
 
-def add_cluster(scope: Construct, id: str, vpc: IVpc) -> Cluster:
-    return Cluster(scope, id, vpc=vpc)
+
+@dataclass
+class ClusterConfig:
+    vpc: IVpc
+    enable_container_insights: bool = False
+
+
+def add_cluster(scope: Construct, id: str, config: ClusterConfig) -> Cluster:
+    return Cluster(scope, id, vpc=config.vpc, container_insights=config.enable_container_insights)
 
 @dataclass
 class TaskConfig:
@@ -34,7 +41,6 @@ class TaskConfig:
 class ContainerConfig:
     dockerhub_image: str
     tcp_ports: list[int]
-
 
 def add_task_definition_with_container(scope: Construct, 
                                        id: str,

@@ -12,6 +12,7 @@ from containers.container_management import (
     add_loadbalanced_service,
     add_task_definition_with_container,
     set_service_scaling,
+    ClusterConfig,
     ContainerConfig,
     ScalingThreshold,
     ServiceScalingConfig,
@@ -22,7 +23,8 @@ from containers.container_management import (
 def test_ECS_cluster_defined_with_existing_vpc():
     stack = Stack()
     vpc = Vpc(stack, 'vpc')
-    cluster = add_cluster(stack, 'test-cluster', vpc=vpc)
+    config = ClusterConfig(vpc=vpc)
+    cluster = add_cluster(stack, 'test-cluster', config)
 
     template = Template.from_stack(stack)
 
@@ -30,6 +32,25 @@ def test_ECS_cluster_defined_with_existing_vpc():
 
     assert(cluster.vpc == vpc)
 
+
+def test_check_that_container_insights_become_enabled():
+    stack = Stack()
+    vpc = Vpc(stack, 'vpc')
+    config = ClusterConfig(vpc=vpc, enable_container_insights=True)
+    cluster = add_cluster(stack, 'test-cluster', config)
+
+    template = Template.from_stack(stack)
+
+    template.has_resource_properties('AWS::ECS::Cluster', {
+        'ClusterSettings': Match.array_with(
+            pattern=[
+                Match.object_equals(pattern={
+                    'Name': 'containerInsights',
+                    'Value': 'enabled'
+                })
+            ]
+        )
+    })
 
 def test_ECS_fargate_task_definition_defined():
     stack = Stack()
@@ -85,7 +106,8 @@ def test_container_definition_added_to_task_definition():
 def service_test_input_data():
     stack = Stack()
     vpc = Vpc(stack, 'vpc')
-    cluster = add_cluster(stack, 'test-cluster', vpc=vpc)
+    config = ClusterConfig(vpc=vpc)
+    cluster = add_cluster(stack, 'test-cluster', config)
     cpuval = 512
     memval = 1024
     familyval = 'test'
